@@ -8,6 +8,8 @@ For instance, to run the testtools test suite.
  $ python -m testtools.run testtools.tests.test_suite
 """
 
+import signal
+import logging
 import copy
 from socket import *
 
@@ -24,6 +26,7 @@ unittest = try_imports(['unittest2', 'unittest'])
 from testtools import TextTestResult, testcase
 from testtools.compat import classtypes, istext, unicode_output_stream
 from testtools.testsuite import filter_by_ids, iterate_tests, sorted_tests, _flatten_tests
+from multiprocessing import Process, Pipe
 
 
 defaultTestLoader = unittest.defaultTestLoader
@@ -34,11 +37,6 @@ have_discover = True
 # to None.
 discover_impl = getattr(unittest, 'loader', None)
 
-# Kept for API compatibility, but no longer used.
-BUFFEROUTPUT = ""
-CATCHBREAK = ""
-FAILFAST = ""
-USAGE_AS_MAIN = ""
 
 def list_test(test):
     """Return the test ids that would be run if test() was run.
@@ -104,7 +102,8 @@ class TestToolsTestRunner(object):
     def run(self, test):
         "Run the given test case or test suite."
         result = TextTestResult(
-            unicode_output_stream(self.stdout), failfast=self.failfast,
+            unicode_output_stream(self.stdout),
+            failfast=self.failfast,
             tb_locals=self.tb_locals)
         result.startTestRun()
         try:
@@ -135,7 +134,7 @@ class TestProgram(unittest.TestProgram):
     failfast = catchbreak = buffer = progName = None
     _discovery_parser = None
 
-    def __init__(self, module=__name__, defaultTest=None, argv=None,
+    def __init__(self, conn, module=__name__, defaultTest=None, argv=None,
                     testRunner=None, testLoader=defaultTestLoader,
                     exit=True, verbosity=1, failfast=None, catchbreak=None,
                     buffer=None, stdout=None, tb_locals=False):
@@ -174,72 +173,14 @@ class TestProgram(unittest.TestProgram):
         self.progName = progName
         self.parseArgs(argv)
 
-        address = ('',25000)
-        sock = socket(AF_INET, SOCK_STREAM)
-        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        sock.bind(address)
-        sock.listen(5)
-        print 'new listen socket is created', sock
-
         while True:
-            print 'waiting for connect'
-            conn, addr = sock.accept()
-            print 'connection accepted' , conn, addr
-            while True:
-                test_ids = []
-                end = False
-                payload = ''
-                while True:
-                    print 'waiting for data ...'
-                    data = conn.recv(1024).decode("utf-8")
-                    if data == '\n':
-                        print 'got command to execute tests'
-                        break
-                    if not data:
-                        print 'got command to finish'
-                        end = True
-                        break
-                    payload += data
-                    print 'got new tests', data
-
-                test_ids.extend(filter(None, payload.split('\n')))
-                if test_ids:
-                    print 'ready to excute tests', len(test_ids)
-                    tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
-                    self.runTests(tests)
-                if end:
-                    print 'test reading finished'
-                    break
-
-        sys.exit()
-
-        # XXX: Local edit (see http://bugs.python.org/issue22860)
-        if self.load_list:
-            # TODO: preserve existing suites (like testresources does in
-            # OptimisingTestSuite.add, but with a standard protocol).
-            # This is needed because the load_tests hook allows arbitrary
-            # suites, even if that is rarely used.
-            source = open(self.load_list, 'rb')
-            try:
-                lines = source.readlines()
-            finally:
-                source.close()
-            test_ids = set(line.strip().decode('utf-8') for line in lines)
-            self.test = filter_by_ids(self.test, test_ids)
-        # XXX: Local edit (see http://bugs.python.org/issue22860)
-        if not self.listtests:
-            self.runTests()
-        else:
-            runner = self._get_runner()
-            if safe_hasattr(runner, 'list'):
-                try:
-                    runner.list(self.test, loader=self.testLoader)
-                except TypeError:
-                    runner.list(self.test)
-            else:
-                for test in iterate_tests(self.test):
-                    self.stdout.write('%s\n' % test.id())
-        del self.testLoader.errors[:]
+            print 'waiting for recv', os.getpid()
+            test_ids = conn.recv()
+            print 'got test_ids', os.getpid(), test_ids
+            logging.debug('child process got list of tests %s', test_ids)
+            tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
+            self.runTests(tests)
+            conn.send('ok')
 
     def _getParentArgParser(self):
         parser = super(TestProgram, self)._getParentArgParser()
@@ -300,12 +241,131 @@ class TestProgram(unittest.TestProgram):
         return testRunner
 
 
+def listen(address):
+        address = ('',25000)
+        sock = socket(AF_INET, SOCK_STREAM)
+        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        sock.bind(address)
+        sock.listen(5)
+        print 'new listen socket is created', sock
 
-################
+        while True:
+            print 'waiting for connect'
+            conn, addr = sock.accept()
+            print 'connection accepted' , conn, addr
+            while True:
+                test_ids = []
+                end = False
+                payload = ''
+                while True:
+                    print 'waiting for data ...'
+                    data = conn.recv(1024).decode("utf-8")
+                    if data == '\n':
+                        print 'got command to execute tests'
+                        break
+                    if not data:
+                        print 'got command to finish'
+                        end = True
+                        break
+                    payload += data
+                    print 'got new tests', data
 
-def main(argv, stdout):
-    program = TestProgram(argv=argv, testRunner=partial(TestToolsTestRunner, stdout=stdout),
+                test_ids.extend(filter(None, payload.split('\n')))
+                if test_ids:
+                    print 'ready to excute tests', len(test_ids)
+                    tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
+                    self.runTests(tests)
+                if end:
+                    print 'test reading finished'
+                    break
+
+
+def listen(address):
+    sock = socket(AF_INET, SOCK_STREAM)
+    sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    sock.bind(address)
+    sock.listen(5)
+    logging.info('new listen socket is created %s', sock)
+    return sock
+
+
+def read_tests(sock):
+    while True:
+        logging.debug('waiting for connect')
+        conn, addr = sock.accept()
+        logging.debug('connection accepted %s, %s', conn, addr)
+        while True:
+            test_ids = []
+            end = False
+            payload = ''
+            while True:
+                print 'waiting for data ...'
+                data = conn.recv(1024).decode("utf-8")
+                if data == '\n':
+                    print 'got command to execute tests'
+                    break
+                if not data:
+                    print 'got command to finish'
+                    end = True
+                    break
+                payload += data
+                print 'got new tests', data
+
+            test_ids.extend(filter(None, payload.split('\n')))
+            if test_ids:
+                print 'ready to excute tests', len(test_ids)
+                yield test_ids
+                # tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
+                # self.runTests(tests)
+            if end:
+                print 'test reading finished'
+                break
+
+
+
+def load_tests_and_wait(conn):
+    stdout = sys.stdout
+    program = TestProgram(
+        conn,
+        argv=[''],
+        testRunner=partial(TestToolsTestRunner, stdout=stdout),
         stdout=stdout)
 
+
+test_runner_process = parent_conn = child_conn = None
+
+
+def restart_child():
+    global test_runner_process, parent_conn, child_conn
+    if test_runner_process:
+        logging.info('kill existing process %s', test_runner_process)
+        test_runner_process.terminate()
+    parent_conn, child_conn = Pipe()
+    test_runner_process = Process(
+        target=load_tests_and_wait, args=(child_conn,))
+    test_runner_process.start()
+    logging.info('started new process %s', test_runner_process)
+
+
+def signal_handler(signum, frame):
+    print 'Signal handler called with signal', signum
+    restart_child()
+
+
 if __name__ == '__main__':
-    main(sys.argv, sys.stdout)
+    logging.basicConfig(level=logging.DEBUG)
+    signal.signal(signal.SIGHUP, signal_handler)
+    restart_child()
+    # parent_conn.send(['nova.tests.unit.volume.test_cinder.CinderApiTestCase.test_update_snapshot_status'])
+    # res = parent_conn.recv()
+    # restart_child()
+    # parent_conn.send(['nova.tests.unit.volume.test_cinder.CinderApiTestCase.test_update_snapshot_status'])
+    # res = parent_conn.recv()
+    sock = listen(('', 25000))
+    while True:
+        try:
+            for tests in read_tests(sock):
+                parent_conn.send(tests)
+                parent_conn.recv()
+        except error:
+            pass
