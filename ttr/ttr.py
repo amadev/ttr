@@ -323,7 +323,8 @@ def read_tests(sock):
 
 
 
-def load_tests_and_wait(conn):
+def load_tes>ts_and_wait(conn):
+    logging.debug('subprocess pid %s', os.getpid())
     stdout = sys.stdout
     program = TestProgram(
         conn,
@@ -344,17 +345,18 @@ def restart_child():
     test_runner_process = Process(
         target=load_tests_and_wait, args=(child_conn,))
     test_runner_process.start()
-    logging.info('started new process %s', test_runner_process)
+    logging.info('started new subprocess %s', test_runner_process)
 
 
 def signal_handler(signum, frame):
-    print 'Signal handler called with signal', signum
+    loging.debug('signal handler called with signal %s', signum)
     restart_child()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(filename='/tmp/ttr.log', level=logging.DEBUG)
     signal.signal(signal.SIGHUP, signal_handler)
+    logging.info('== starting ttr process')
     restart_child()
     # parent_conn.send(['nova.tests.unit.volume.test_cinder.CinderApiTestCase.test_update_snapshot_status'])
     # res = parent_conn.recv()
