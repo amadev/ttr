@@ -10,7 +10,7 @@ class TtrTestCase(unittest.TestCase):
         p = Popen(['python', '/home/amadev/files/prog/ttr/bin/ttr'])
         time.sleep(0.2)
         sock = create_connection(server.ADDRESS)
-        sock.send('xxx')
+        sock.send('ttr.tests.test_server.ServerTestCase.test_listen')
         time.sleep(0.1)
         sock.send('\n')
         time.sleep(0.5)

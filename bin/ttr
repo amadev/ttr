@@ -4,14 +4,14 @@ import signal
 import logging
 import copy
 from socket import *
-
 import argparse
 from functools import partial
 import os.path
-
 import sys
-
+from ttr import server
 from extras import safe_hasattr, try_imports
+
+
 # To let setup.py work, make this a conditional import.
 unittest = try_imports(['unittest2', 'unittest'])
 
@@ -166,9 +166,8 @@ class TestProgram(unittest.TestProgram):
         self.parseArgs(argv)
 
         while True:
-            print 'waiting for recv', os.getpid()
+            logging.debug('waiting for recv on pair conn %s', conn)
             test_ids = conn.recv()
-            print 'got test_ids', os.getpid(), test_ids
             logging.debug('child process got list of tests %s', test_ids)
             tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
             self.runTests(tests)
@@ -233,47 +232,6 @@ class TestProgram(unittest.TestProgram):
         return testRunner
 
 
-def listen(address):
-    sock = socket(AF_INET, SOCK_STREAM)
-    sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-    sock.bind(address)
-    sock.listen(5)
-    logging.info('new listen socket is created %s', sock)
-    return sock
-
-
-def read_tests(sock):
-    while True:
-        logging.debug('waiting for connect %s', sock)
-        conn, addr = sock.accept()
-        logging.info('connection accepted %s, %s', conn, addr)
-        while True:
-            test_ids = []
-            end = False
-            payload = ''
-            while True:
-                logging.debug('waiting for data on %s', sock)
-                data = conn.recv(1024).decode("utf-8")
-                logging.debug(
-                    'got data: "%s", hex repr: "%s"', data, data.encode('hex'))
-                if data == '\n':
-                    logging.debug('got command to execute tests')
-                    break
-                if not data:
-                    logging.debug('got command to finish receiving')
-                    end = True
-                    break
-                payload += data
-
-            test_ids.extend(filter(None, payload.split('\n')))
-            if test_ids:
-                logging.debug('ready to excute tests %s', len(test_ids))
-                yield test_ids
-            if end:
-                logging.debug('test reading finished')
-                break
-
-
 def load_tests_and_wait(conn):
     stdout = sys.stdout
     program = TestProgram(
@@ -299,7 +257,7 @@ def restart_child():
 
 
 def signal_handler(signum, frame):
-    print 'Signal handler called with signal', signum
+    logging.debug('signal handler called with signal', signum)
     restart_child()
 
 
@@ -310,10 +268,10 @@ if __name__ == '__main__':
     signal.signal(signal.SIGHUP, signal_handler)
     logging.info('=== starting main process')
     restart_child()
-    sock = listen(('', 25000))
+    sock = server.listen(('', 25000))
     while True:
         try:
-            for tests in read_tests(sock):
+            for tests in server.read_tests(sock):
                 parent_conn.send(tests)
                 parent_conn.recv()
         except error:
