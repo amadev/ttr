@@ -10,8 +10,8 @@ ADDRESS = ('localhost', 25000)
 TEST_RUNNER_PROCESS = None
 WATCHER_PROCESS = None
 TEST_RUNNER_CONN = None
-EXCLUDE_DIRS = ['.git', '.tox']
-EXCLUDE_FILES = ['.#']
+EXCLUDE_DIRS = ['/.git', '/.tox', '/.eggs', '/__pycache__', '/doc', '/api-ref']
+EXCLUDE_FILES = ['.#', '.pyc']
 
 
 class InotifyExcludedTree(inotify.adapters.BaseTree):
