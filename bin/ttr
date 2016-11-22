@@ -167,7 +167,7 @@ class TestProgram(unittest.TestProgram):
         while True:
             logging.debug('waiting for recv on pair conn %s', conn)
             test_ids = conn.recv()
-            logging.debug('child process got list of tests %s', test_ids)
+            logging.debug('test program process got list of tests %s', test_ids)
             tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
             self.runTests(tests)
             conn.send('ok')
@@ -240,18 +240,23 @@ def load_tests_and_wait(conn):
         stdout=stdout)
 
 
-def signal_handler(signum, frame):
-    logging.debug('signal handler called with signal', signum)
+def restart_test_runner():
     server.restart_test_runner(load_tests_and_wait)
+
+
+def signal_handler(signum, frame):
+    logging.debug('signal handler called with signal %s', signum)
+    restart_test_runner()
 
 
 if __name__ == '__main__':
     logging.basicConfig(
         filename='/tmp/ttr.log',
         level=logging.DEBUG)
-    signal.signal(signal.SIGHUP, signal_handler)
     logging.info('=== starting main process')
-    server.restart_test_runner(load_tests_and_wait)
+    signal.signal(signal.SIGHUP, signal_handler)
+    restart_test_runner()
+    server.start_watcher()
     sock = server.listen(server.ADDRESS)
     while True:
         try:

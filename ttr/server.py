@@ -1,11 +1,45 @@
+import os
+import signal
 import socket
 import logging
 from multiprocessing import Process, Pipe
+import inotify.adapters
 
 
 ADDRESS = ('localhost', 25000)
 TEST_RUNNER_PROCESS = None
+WATCHER_PROCESS = None
 TEST_RUNNER_CONN = None
+EXCLUDE_DIRS = ['.git', '.tox']
+EXCLUDE_FILES = ['.#']
+
+
+class InotifyExcludedTree(inotify.adapters.BaseTree):
+    def __init__(self, path, mask=inotify.constants.IN_ALL_EVENTS,
+                 block_duration_s=1,
+                 excludes=None):
+        super(InotifyExcludedTree, self).__init__(
+            mask=mask, block_duration_s=block_duration_s)
+        self.__root_path = path
+        self.excludes = excludes or []
+        self.__load_tree(path)
+
+    def __load_tree(self, path):
+        logging.debug("Adding initial watches on tree: [%s]", path)
+        q = [path]
+        while q:
+            current_path = q[0]
+            del q[0]
+
+            self._i.add_watch(current_path, self._mask)
+
+            for filename in os.listdir(current_path):
+                entry_filepath = os.path.join(current_path, filename)
+                if os.path.isdir(entry_filepath) is False:
+                    continue
+                if any(ex in entry_filepath for ex in self.excludes):
+                    continue
+                q.append(entry_filepath)
 
 
 def listen(address):
@@ -58,4 +92,36 @@ def restart_test_runner(function):
     TEST_RUNNER_PROCESS = Process(
         target=function, args=(child_conn,))
     TEST_RUNNER_PROCESS.start()
-    logging.info('started new subprocess %s', TEST_RUNNER_PROCESS)
+    logging.info('started test runner subprocess %s', TEST_RUNNER_PROCESS)
+
+
+def _watch():
+    i = InotifyExcludedTree(
+        os.getcwd(), mask=inotify.constants.IN_MODIFY,
+        excludes=EXCLUDE_DIRS)
+    for event in i.event_gen():
+        if event is not None:
+            header, type_names, watch_path, filename = event
+            watch_path = watch_path.decode('utf8')
+            filename = filename.decode('utf8')
+
+            logging.debug("WD=(%d) MASK=(%d) COOKIE=(%d) LEN=(%d) "
+                          "MASK->NAMES=%s "
+                          "WATCH-PATH=[%s] FILENAME=[%s]",
+                          header.wd, header.mask, header.cookie,
+                          header.len, type_names,
+                          watch_path, filename)
+            # TODO: move excluded files to inotify
+            if not any(ex in filename for ex in EXCLUDE_FILES):
+                ppid = os.getppid()
+                os.kill(ppid, signal.SIGHUP)
+                logging.info(
+                    'watch event: signal sent to pid %s due file %s changed',
+                    ppid, os.path.join(watch_path, filename))
+
+
+def start_watcher():
+    global WATCHER_PROCESS
+    WATCHER_PROCESS = Process(target=_watch)
+    WATCHER_PROCESS.start()
+    logging.info('started watcher subprocess %s', WATCHER_PROCESS)
