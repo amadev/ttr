@@ -18,7 +18,6 @@ unittest = try_imports(['unittest2', 'unittest'])
 from testtools import TextTestResult, testcase
 from testtools.compat import classtypes, istext, unicode_output_stream
 from testtools.testsuite import filter_by_ids, iterate_tests, sorted_tests, _flatten_tests
-from multiprocessing import Process, Pipe
 
 
 defaultTestLoader = unittest.defaultTestLoader
@@ -241,24 +240,9 @@ def load_tests_and_wait(conn):
         stdout=stdout)
 
 
-test_runner_process = parent_conn = child_conn = None
-
-
-def restart_child():
-    global test_runner_process, parent_conn, child_conn
-    if test_runner_process:
-        logging.info('kill existing process %s', test_runner_process)
-        test_runner_process.terminate()
-    parent_conn, child_conn = Pipe()
-    test_runner_process = Process(
-        target=load_tests_and_wait, args=(child_conn,))
-    test_runner_process.start()
-    logging.info('started new subprocess %s', test_runner_process)
-
-
 def signal_handler(signum, frame):
     logging.debug('signal handler called with signal', signum)
-    restart_child()
+    server.restart_test_runner(load_tests_and_wait)
 
 
 if __name__ == '__main__':
@@ -267,12 +251,12 @@ if __name__ == '__main__':
         level=logging.DEBUG)
     signal.signal(signal.SIGHUP, signal_handler)
     logging.info('=== starting main process')
-    restart_child()
-    sock = server.listen(('', 25000))
+    server.restart_test_runner(load_tests_and_wait)
+    sock = server.listen(server.ADDRESS)
     while True:
         try:
             for tests in server.read_tests(sock):
-                parent_conn.send(tests)
-                parent_conn.recv()
+                server.TEST_RUNNER_CONN.send(tests)
+                server.TEST_RUNNER_CONN.recv()
         except error:
             pass

@@ -1,8 +1,11 @@
 import socket
 import logging
+from multiprocessing import Process, Pipe
 
 
 ADDRESS = ('localhost', 25000)
+TEST_RUNNER_PROCESS = None
+TEST_RUNNER_CONN = None
 
 
 def listen(address):
@@ -44,3 +47,15 @@ def read_tests(sock):
             if end:
                 logging.debug('test reading finished')
                 break
+
+
+def restart_test_runner(function):
+    global TEST_RUNNER_PROCESS, TEST_RUNNER_CONN
+    if TEST_RUNNER_PROCESS:
+        logging.info('kill existing process %s', TEST_RUNNER_PROCESS)
+        TEST_RUNNER_PROCESS.terminate()
+    TEST_RUNNER_CONN, child_conn = Pipe()
+    TEST_RUNNER_PROCESS = Process(
+        target=function, args=(child_conn,))
+    TEST_RUNNER_PROCESS.start()
+    logging.info('started new subprocess %s', TEST_RUNNER_PROCESS)
