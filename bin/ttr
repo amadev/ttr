@@ -246,7 +246,10 @@ def restart_test_runner():
 
 def signal_handler(signum, frame):
     logging.debug('signal handler called with signal %s', signum)
-    restart_test_runner()
+    if signum == signal.SIGHUP:
+        restart_test_runner()
+    elif signum == signal.SIGTERM:
+        server.kill()
 
 
 if __name__ == '__main__':
@@ -254,16 +257,20 @@ if __name__ == '__main__':
         filename='/tmp/ttr.log',
         level=logging.DEBUG)
     logging.info('=== starting main process')
-    signal.signal(signal.SIGHUP, signal_handler)
     restart_test_runner()
     server.start_watcher()
+    signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     sock = server.listen(server.ADDRESS)
     while True:
+        if server.IS_STOPPED:
+            break
         try:
             for tests in server.read_tests(sock):
                 server.TEST_RUNNER_CONN.send(tests)
-                server.TEST_RUNNER_CONN.recv()
-                sock.send('ok')
+                test_results = server.TEST_RUNNER_CONN.recv()
+                logging.debug('inner sock got test results %s', test_results)
+                sock.send(test_results)
         except error as e:
             logging.exception(e)
             pass

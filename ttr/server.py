@@ -13,6 +13,8 @@ TEST_RUNNER_CONN = None
 EXCLUDE_DIRS = ['/.git', '/.tox', '/.eggs', '/__pycache__', '/doc', '/api-ref']
 EXCLUDE_FILES = ['.#', '.pyc']
 END_MARKER = '---'
+IS_STOPPED = False
+
 
 class InotifyExcludedTree(inotify.adapters.BaseTree):
     def __init__(self, path, mask=inotify.constants.IN_ALL_EVENTS,
@@ -126,3 +128,11 @@ def start_watcher():
     WATCHER_PROCESS = Process(target=_watch)
     WATCHER_PROCESS.start()
     logging.info('started watcher subprocess %s', WATCHER_PROCESS)
+
+
+def kill():
+    global IS_STOPPED
+    logging.info('killing everybody ...')
+    os.kill(WATCHER_PROCESS.pid, signal.SIGTERM)
+    os.kill(TEST_RUNNER_PROCESS.pid, signal.SIGTERM)
+    IS_STOPPED = True
