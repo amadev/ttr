@@ -263,5 +263,7 @@ if __name__ == '__main__':
             for tests in server.read_tests(sock):
                 server.TEST_RUNNER_CONN.send(tests)
                 server.TEST_RUNNER_CONN.recv()
-        except error:
+                sock.send('ok')
+        except error as e:
+            logging.exception(e)
             pass

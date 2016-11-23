@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+
+import time
+import fileinput
+import socket
+from ttr import server
+
+
+sock = socket.create_connection(server.ADDRESS)
+for line in fileinput.input():
+    print 'line', line
+    sock.send(line)
+sock.send('---')
+print sock.recv(1024)
+sock.close()

@@ -12,7 +12,7 @@ WATCHER_PROCESS = None
 TEST_RUNNER_CONN = None
 EXCLUDE_DIRS = ['/.git', '/.tox', '/.eggs', '/__pycache__', '/doc', '/api-ref']
 EXCLUDE_FILES = ['.#', '.pyc']
-
+END_MARKER = '---'
 
 class InotifyExcludedTree(inotify.adapters.BaseTree):
     def __init__(self, path, mask=inotify.constants.IN_ALL_EVENTS,
@@ -65,7 +65,8 @@ def read_tests(sock):
                 data = conn.recv(1024).decode("utf-8")
                 logging.debug(
                     'got data: "%s", hex repr: "%s"', data, data.encode('hex'))
-                if data == '\n':
+                if data.endswith(END_MARKER):
+                    payload += data.replace(END_MARKER, '')
                     logging.debug('got command to execute tests')
                     break
                 if not data:
