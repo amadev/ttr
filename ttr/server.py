@@ -55,6 +55,8 @@ def listen(address):
 
 def read_tests(sock):
     while True:
+        if IS_STOPPED:
+            raise RuntimeError('stopped before sock.accept')
         logging.debug('waiting for connect %s', sock)
         conn, addr = sock.accept()
         logging.info('connection accepted %s, %s', conn, addr)
@@ -80,7 +82,7 @@ def read_tests(sock):
             test_ids.extend(filter(None, payload.split('\n')))
             if test_ids:
                 logging.debug('ready to excute tests %s', len(test_ids))
-                yield test_ids
+                yield conn, test_ids
             if end:
                 logging.debug('test reading finished')
                 break
@@ -93,7 +95,7 @@ def restart_test_runner(function):
         TEST_RUNNER_PROCESS.terminate()
     TEST_RUNNER_CONN, child_conn = Pipe()
     TEST_RUNNER_PROCESS = Process(
-        target=function, args=(child_conn,))
+        target=function, args=(child_conn,), name='test_runner')
     TEST_RUNNER_PROCESS.start()
     logging.info('started test runner subprocess %s', TEST_RUNNER_PROCESS)
 
@@ -125,14 +127,14 @@ def _watch():
 
 def start_watcher():
     global WATCHER_PROCESS
-    WATCHER_PROCESS = Process(target=_watch)
+    WATCHER_PROCESS = Process(target=_watch, name='watcher')
     WATCHER_PROCESS.start()
     logging.info('started watcher subprocess %s', WATCHER_PROCESS)
 
 
 def kill():
     global IS_STOPPED
-    logging.info('killing everybody ...')
-    os.kill(WATCHER_PROCESS.pid, signal.SIGTERM)
-    os.kill(TEST_RUNNER_PROCESS.pid, signal.SIGTERM)
     IS_STOPPED = True
+    logging.info('killing everybody ...')
+    WATCHER_PROCESS.terminate()
+    TEST_RUNNER_PROCESS.terminate()

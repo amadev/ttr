@@ -23,7 +23,7 @@ def restart_test_runner():
 
 
 def signal_handler(signum, frame):
-    logging.debug('signal handler called with signal %s', signum)
+    logging.debug('signal handler called with signal %s, %s', signum, frame)
     if signum == signal.SIGHUP:
         restart_test_runner()
     elif signum == signal.SIGTERM:
@@ -33,21 +33,29 @@ def signal_handler(signum, frame):
 if __name__ == '__main__':
     logging.basicConfig(
         filename='/tmp/ttr.log',
-        level=logging.DEBUG)
+        level=logging.DEBUG,
+        format=('%(asctime)s - %(name)s - %(levelname)s '
+                '- %(process)s - %(processName)s - %(message)s'))
     logging.info('=== starting main process')
     restart_test_runner()
     server.start_watcher()
     signal.signal(signal.SIGHUP, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    sock = server.listen(server.ADDRESS)
+    srv_conn = server.listen(server.ADDRESS)
     while True:
         if server.IS_STOPPED:
             break
         try:
-            for tests in server.read_tests(sock):
+            for cln_conn, tests in server.read_tests(srv_conn):
                 server.TEST_RUNNER_CONN.send(tests)
                 test_results = server.TEST_RUNNER_CONN.recv()
                 logging.debug('inner sock got test results %s', test_results)
-                sock.send(test_results)
-        except socket.error as e:
-            logging.exception(e)
+                cln_conn.send(test_results)
+        except (socket.error, RuntimeError) as exc:
+            # if signal come (kill -s 1|15 pid) socket will be destroyed
+            # with error [Errno 4] Interrupted system call
+            # and we need to restart whole procedure
+            # python process.terminate does thins more smoothly
+            # looks like socket is closed properly before killing
+            # for the such case RuntimeError is raised in read_tests
+            logging.exception('reading cycle was broken due %s', exc)
