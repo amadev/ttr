@@ -11,6 +11,9 @@ from ttr.tstlib import TestProgram, TestToolsTestRunner
 
 def load_tests_and_wait(conn):
     stdout = sys.stdout
+    # restore default signal for subprocess
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    logging.debug('set new signal 0')
     program = TestProgram(
         conn,
         argv=[''],
@@ -55,7 +58,7 @@ if __name__ == '__main__':
             # if signal come (kill -s 1|15 pid) socket will be destroyed
             # with error [Errno 4] Interrupted system call
             # and we need to restart whole procedure
-            # python process.terminate does thins more smoothly
+            # python process.terminate does things more smoothly
             # looks like socket is closed properly before killing
             # for the such case RuntimeError is raised in read_tests
             logging.exception('reading cycle was broken due %s', exc)
