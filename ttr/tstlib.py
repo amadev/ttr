@@ -163,7 +163,7 @@ class TestProgram(unittest.TestProgram):
                 'test program process got list of tests %s', test_ids)
             tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
             self.runTests(tests)
-            conn.send('ok')
+            conn.send(self.stdout.getvalue())
 
     def _getParentArgParser(self):
         parser = super(TestProgram, self)._getParentArgParser()

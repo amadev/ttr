@@ -5,15 +5,16 @@ import socket
 import signal
 import logging
 from functools import partial
+from StringIO import StringIO
 from ttr import server
 from ttr.tstlib import TestProgram, TestToolsTestRunner
 
 
 def load_tests_and_wait(conn):
-    stdout = sys.stdout
     # restore default signal for subprocess
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     logging.debug('set new signal 0')
+    stdout = StringIO()
     program = TestProgram(
         conn,
         argv=[''],

@@ -23,7 +23,7 @@ class TtrTestCase(unittest.TestCase):
         conn = create_connection(server.ADDRESS)
         conn.send('ttr.tests.test_server.ServerTestCase.test_listen---')
         test_result = conn.recv(1024)
-        self.assertEqual('ok', test_result)
+        self.assertIn('Ran 1 test in', test_result)
         conn.close()
         self._stop()
 
