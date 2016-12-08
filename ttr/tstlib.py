@@ -2,7 +2,7 @@ import logging
 import copy
 import os.path
 import sys
-from extras import try_imports
+from extras import try_imports, safe_hasattr
 
 
 # To let setup.py work, make this a conditional import.
@@ -10,7 +10,7 @@ unittest = try_imports(['unittest2', 'unittest'])
 
 from testtools import TextTestResult
 from testtools.compat import istext, unicode_output_stream
-from testtools.testsuite import filter_by_ids, iterate_tests, sorted_tests
+from testtools.testsuite import iterate_tests, sorted_tests
 
 
 defaultTestLoader = unittest.defaultTestLoader
@@ -159,9 +159,15 @@ class TestProgram(unittest.TestProgram):
         while True:
             logging.debug('waiting for recv on pair conn %s', conn)
             test_ids = conn.recv()
+            self.stdout.truncate(0)
             logging.debug(
                 'test program process got list of tests %s', test_ids)
+            # import pprint
+            # print 'original tests'
+            # pprint.pprint(list_test(self.test)[0])
             tests = copy.deepcopy(filter_by_ids(self.test, test_ids))
+            # print 'filtered tests'
+            # pprint.pprint(list_test(tests)[0])
             self.runTests(tests)
             conn.send(self.stdout.getvalue())
 
@@ -182,13 +188,11 @@ class TestProgram(unittest.TestProgram):
         self.test = sorted_tests(self.test)
 
     def runTests(self, tests):
-        if (self.catchbreak
-                and getattr(unittest, 'installHandler', None) is not None):
+        if (self.catchbreak and
+                getattr(unittest, 'installHandler', None) is not None):
             unittest.installHandler()
         testRunner = self._get_runner()
         self.result = testRunner.run(tests)
-        # if self.exit:
-        #     sys.exit(not self.result.wasSuccessful())
 
     def _get_runner(self):
         if self.testRunner is None:
@@ -221,3 +225,21 @@ class TestProgram(unittest.TestProgram):
                     # it is assumed to be a TestRunner instance
                     testRunner = self.testRunner
         return testRunner
+
+
+def get_tests_by_ids(suite_or_case, test_ids):
+    if safe_hasattr(suite_or_case, 'id'):
+        if suite_or_case.id() in test_ids:
+            return [suite_or_case]
+        return []
+    else:
+        filtered = []
+        for item in suite_or_case:
+            filtered.extend(filter_by_ids(item, test_ids))
+        return filtered
+
+
+def filter_by_ids(suite_or_case, test_ids):
+    suite = unittest.TestSuite()
+    suite.addTests(get_tests_by_ids(suite_or_case, test_ids))
+    return suite
