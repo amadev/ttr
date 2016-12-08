@@ -4,13 +4,15 @@ import os.path
 import sys
 from extras import try_imports, safe_hasattr
 
-
 # To let setup.py work, make this a conditional import.
 unittest = try_imports(['unittest2', 'unittest'])
 
 from testtools import TextTestResult
 from testtools.compat import istext, unicode_output_stream
 from testtools.testsuite import iterate_tests, sorted_tests
+
+
+logger = logging.getLogger(__name__)
 
 
 defaultTestLoader = unittest.defaultTestLoader
@@ -157,10 +159,10 @@ class TestProgram(unittest.TestProgram):
         self.parseArgs(argv)
 
         while True:
-            logging.debug('waiting for recv on pair conn %s', conn)
+            logger.debug('waiting for recv on pair conn %s', conn)
             test_ids = conn.recv()
             self.stdout.truncate(0)
-            logging.debug(
+            logger.debug(
                 'test program process got list of tests %s', test_ids)
             # import pprint
             # print 'original tests'
