@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+
+import socket
+import signal
+import logging
+from StringIO import StringIO
+from ttr import server
+from ttr.tstlib import run_program
+
+
+def load_tests_and_wait(conn):
+    # restore default signal for subprocess
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    logger.debug('set new signal 0')
+    run_program(conn, [''], StringIO())
+
+
+def restart_test_runner():
+    server.restart_test_runner(load_tests_and_wait)
+
+
+def signal_handler(signum, frame):
+    logger.debug('signal handler called with signal %s, %s', signum, frame)
+    if signum == signal.SIGHUP:
+        restart_test_runner()
+    elif signum == signal.SIGTERM:
+        server.kill()
+
+
+if __name__ == '__main__':
+    logger = logging.getLogger('ttr')
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    ch = logging.FileHandler(filename='/tmp/ttr.log')
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        ('%(asctime)s - %(name)s - %(levelname)s '
+         '- %(process)s - %(processName)s - %(message)s'))
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.info('=== starting main process')
+    restart_test_runner()
+    server.start_watcher()
+    signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    srv_conn = server.listen(server.ADDRESS)
+    while True:
+        if server.IS_STOPPED:
+            break
+        try:
+            for cln_conn, tests in server.read_tests(srv_conn):
+                server.TEST_RUNNER_CONN.send(tests)
+                test_results = server.TEST_RUNNER_CONN.recv()
+                logger.debug('inner sock got test results %s', test_results)
+                cln_conn.send(test_results)
+        except (socket.error, RuntimeError) as exc:
+            # if signal come (kill -s 1|15 pid) socket will be destroyed
+            # with error [Errno 4] Interrupted system call
+            # and we need to restart whole procedure
+            # python process.terminate does things more smoothly
+            # looks like socket is closed properly before killing
+            # for the such case RuntimeError is raised in read_tests
+            logger.exception('reading cycle was broken due %s', exc)

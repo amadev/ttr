@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 setup(
     name = "ttr",
-    version = "0.1.0",
+    version = "0.1.1",
     packages = find_packages(),
     # metadata for upload to PyPI
     author = "Andrey Volkov",
@@ -28,4 +28,5 @@ setup(
         'Programming Language :: Python :: 3',
         'Topic :: Utilities'
     ],
+    scripts=['bin/ttr-start', 'bin/ttr'],
 )
