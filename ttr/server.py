@@ -112,11 +112,11 @@ def _watch():
             filename = filename.decode('utf8')
 
             logger.debug("WD=(%d) MASK=(%d) COOKIE=(%d) LEN=(%d) "
-                          "MASK->NAMES=%s "
-                          "WATCH-PATH=[%s] FILENAME=[%s]",
-                          header.wd, header.mask, header.cookie,
-                          header.len, type_names,
-                          watch_path, filename)
+                         "MASK->NAMES=%s "
+                         "WATCH-PATH=[%s] FILENAME=[%s]",
+                         header.wd, header.mask, header.cookie,
+                         header.len, type_names,
+                         watch_path, filename)
             # TODO: move excluded files to inotify
             if not any(ex in filename for ex in EXCLUDE_FILES):
                 ppid = os.getppid()

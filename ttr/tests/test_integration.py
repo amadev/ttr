@@ -1,7 +1,7 @@
 import os
 import signal
 import unittest
-from subprocess import Popen, PIPE
+from subprocess import Popen
 from socket import create_connection
 import time
 from ttr import server

@@ -1,5 +1,5 @@
-import mock
 import unittest
+import mock
 from ttr import server
 
 

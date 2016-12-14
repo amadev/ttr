@@ -4,7 +4,9 @@ import sys
 from functools import partial
 from extras import try_imports, safe_hasattr
 from testtools.compat import istext
-from testtools.run import TestProgram, TestToolsTestRunner
+from testtools.run import (
+    TestProgram as TestoolsTestProgram,
+    TestToolsTestRunner)
 
 
 # To let setup.py work, make this a conditional import.
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 defaultTestLoader = unittest.defaultTestLoader
 
 
-class TestProgram(TestProgram):
+class TestProgram(TestoolsTestProgram):
     """A command-line program that runs a set of tests; this is primarily
        for making test modules conveniently executable.
     """
