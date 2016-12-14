@@ -1,2 +1,0 @@
-# ttr
-Turbo test runner

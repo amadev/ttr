@@ -1,0 +1,58 @@
+* Turbo test runner
+
+The main goal of this tool is to run single test or couple of tests
+from test set faster.
+
+Let's take some project with a quite large number of tests.
+Clone nova repository.
+
+#+BEGIN_SRC sh
+git clone git@github.com:openstack/nova.git
+tox -e py27 # takes about 10 minutes
+#+END_SRC
+
+Run one test from ~15 thousand of tests.
+
+#+BEGIN_SRC sh
+source .tox/py27/bin/activate
+time python -m testtools.run nova.tests.unit.test_wsgi.TestWSGIServerWithSSL.test_app_using_ipv6_and_ssl
+#+END_SRC
+
+#+BEGIN_SRC text
+Tests running...
+
+Ran 1 test in 0.626s
+OK
+
+real	0m3.676s
+user	0m2.600s
+sys	0m0.152s
+#+END_SRC
+
+One test 3.5s, really?
+Can we do better?
+
+#+BEGIN_SRC sh
+pip install ttr
+ttr-start &
+#+END_SRC
+
+And run the test again.
+
+#+BEGIN_SRC sh
+time echo nova.tests.unit.test_wsgi.TestWSGIServerWithSSL.test_app_using_ipv6_and_ssl | ttr
+#+END_SRC
+
+#+BEGIN_SRC text
+Tests running...
+
+Ran 1 test in 0.124s
+OK
+
+real	0m0.283s
+user	0m0.028s
+sys	0m0.012s
+#+END_SRC
+
+Oh, much better!
+
