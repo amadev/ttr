@@ -6,11 +6,14 @@ from socket import create_connection
 import time
 from ttr import server
 
+ROOT_PATH = __file__
+for i in range(3):
+    ROOT_PATH = os.path.dirname(ROOT_PATH)
 
 class TtrTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.p = Popen(['python', '/home/amadev/files/prog/ttr/bin/ttr'])
+        self.p = Popen(['python', ROOT_PATH + '/bin/ttr-start'])
         time.sleep(0.3)
         return self.p
 
