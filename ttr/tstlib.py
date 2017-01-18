@@ -1,12 +1,14 @@
 import logging
 import os.path
 import sys
+import copy
 from functools import partial
 from extras import try_imports, safe_hasattr
 from testtools.compat import istext
 from testtools.run import (
     TestProgram as TestoolsTestProgram,
-    TestToolsTestRunner)
+    TestToolsTestRunner, list_test)
+
 
 
 # To let setup.py work, make this a conditional import.
@@ -63,7 +65,7 @@ class TestProgram(TestoolsTestProgram):
             progName = os.path.basename(argv[0])
         self.progName = progName
         self.parseArgs(argv)
-
+        logger.debug('tests loaded: %s', len(list_test(self.test)[0]))
         while True:
             logger.debug('waiting for recv on pair conn %s', conn)
             test_ids = conn.recv()
@@ -85,12 +87,12 @@ class TestProgram(TestoolsTestProgram):
 def get_tests_by_ids(suite_or_case, test_ids):
     if safe_hasattr(suite_or_case, 'id'):
         if suite_or_case.id() in test_ids:
-            return [suite_or_case]
+            return [copy.deepcopy(suite_or_case)]
         return []
     else:
         filtered = []
         for item in suite_or_case:
-            filtered.extend(filter_by_ids(item, test_ids))
+            filtered.extend(get_tests_by_ids(item, test_ids))
         return filtered
 
 
