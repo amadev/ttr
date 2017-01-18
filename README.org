@@ -40,7 +40,7 @@ ttr-start &
 And run the test again.
 
 #+BEGIN_SRC sh
-time echo nova.tests.unit.test_wsgi.TestWSGIServerWithSSL.test_app_using_ipv6_and_ssl | ttr
+time ttr nova.tests.unit.test_wsgi.TestWSGIServerWithSSL.test_app_using_ipv6_and_ssl
 #+END_SRC
 
 #+BEGIN_SRC text
