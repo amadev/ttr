@@ -1,3 +1,4 @@
+import mock
 import unittest
 from ttr import tstlib
 from testtools.run import list_test
@@ -22,3 +23,16 @@ class FilterByIdTestCase(unittest.TestCase):
             suite, ['ttr.tests.test_tstlib.FakeTestCase.meth1'])
         tests, _ = list_test(suite)
         self.assertEqual(1, len(tests))
+
+    def test_run_unknown_command(self):
+        conn = mock.Mock()
+        conn.recv.return_value = ['unknown', '']
+        tstlib.TestProgram.run_once = True
+        tstlib.TestProgram(conn, argv=[''])
+
+    def test_run_test_command(self):
+        conn = mock.Mock()
+        conn.recv.return_value = ['run_tests', ['test1']]
+        tstlib.TestProgram.run_once = True
+        tstlib.TestProgram(conn, argv=[''])
+        assert conn.send.call_args == [('',)]

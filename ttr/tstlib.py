@@ -64,17 +64,35 @@ class TestProgram(TestoolsTestProgram):
         else:
             progName = os.path.basename(argv[0])
         self.progName = progName
+        self.handlers = {'run_tests': self.handler_run_tests,
+                         'list_tests': self.handler_list_tests}
         self.parseArgs(argv)
         logger.debug('tests loaded: %s', len(list_test(self.test)[0]))
         while True:
+            # cleanup stream from previos run
+            #self.stdout.truncate(0)
+
             logger.debug('waiting for recv on pair conn %s', conn)
-            test_ids = conn.recv()
-            self.stdout.truncate(0)
-            logger.debug(
-                'test program process got list of tests %s', test_ids)
-            tests = filter_by_ids(self.test, test_ids)
-            self.runTests(tests)
-            conn.send(self.stdout.getvalue())
+            cmd, params = conn.recv()
+            if cmd not in self.handlers:
+                logger.info('got unknown command: %s', cmd)
+            else:
+                conn.send(self.handlers[cmd](params))
+            if hasattr(self, 'run_once') and self.run_once:
+                break
+
+    def handler_run_tests(self, test_ids):
+        logger.debug(
+            'test program process got list of tests %s', test_ids)
+        tests = filter_by_ids(self.test, test_ids)
+        self.runTests(tests)
+        result = ''
+        if hasattr(self.stdout, 'getvalue'):
+            result = self.stdout.getvalue()
+        return result
+
+    def handler_list_tests(self, dummy):
+        return 'not_implemented'
 
     def runTests(self, tests):
         if (self.catchbreak and
