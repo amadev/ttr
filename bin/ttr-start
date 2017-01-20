@@ -48,11 +48,11 @@ if __name__ == '__main__':
         if server.IS_STOPPED:
             break
         try:
-            for cln_conn, tests in server.read_tests(srv_conn):
-                server.TEST_RUNNER_CONN.send(['run_tests', tests])
-                test_results = server.TEST_RUNNER_CONN.recv()
-                logger.debug('inner sock got test results %s', test_results)
-                cln_conn.send(test_results)
+            for cln_conn, request in server.read_request(srv_conn):
+                server.TEST_RUNNER_CONN.send(request)
+                results = server.TEST_RUNNER_CONN.recv()
+                logger.debug('inner sock got results %s', results)
+                cln_conn.send(results)
         except (socket.error, RuntimeError) as exc:
             # if signal come (kill -s 1|15 pid) socket will be destroyed
             # with error [Errno 4] Interrupted system call

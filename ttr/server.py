@@ -54,17 +54,22 @@ def listen(address):
     return sock
 
 
-def read_tests(sock):
+def read_request(sock):
+    """
+    Infinite read request loop.
+    Format of request: cmd|params--
+    """
     while True:
         if IS_STOPPED:
             raise RuntimeError('stopped before sock.accept')
         logger.debug('waiting for connect %s', sock)
         conn, addr = sock.accept()
         logger.info('connection accepted %s, %s', conn, addr)
+        # start multi-read cycle
         while True:
-            test_ids = []
             end = False
             payload = ''
+            # start reading one request cycle
             while True:
                 logger.debug('waiting for data on %s', sock)
                 data = conn.recv(1024).decode("utf-8")
@@ -72,21 +77,24 @@ def read_tests(sock):
                     'got data: "%s", hex repr: "%s"', data, data.encode('hex'))
                 if data.endswith(END_MARKER):
                     payload += data.replace(END_MARKER, '')
-                    logger.debug('got command to execute tests')
+                    logger.debug('got command to execute')
                     break
                 if not data:
                     logger.debug('got command to finish receiving')
                     end = True
                     break
                 payload += data
-
-            test_ids.extend(filter(None, payload.split('\n')))
-            if test_ids:
-                logger.debug('ready to excute tests %s', len(test_ids))
-                yield conn, test_ids
+                # end reading one request cycle
             if end:
-                logger.debug('test reading finished')
+                logger.debug('reading is finished, exiting')
+                # exit multi-read cycle
                 break
+            request = payload.split('|')
+            if len(request) != 2:
+                logger.info('got invalid request %s', request)
+                continue
+            logger.debug('ready to excute %s', request)
+            yield conn, request
 
 
 def restart_test_runner(function):
