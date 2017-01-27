@@ -8,9 +8,18 @@ import argparse
 
 parser = argparse.ArgumentParser(
     description='Client part of turbo test runner.')
-parser.add_argument('test_name', type=str, help='Test name.')
+parser.add_argument('test_name', type=str, help='Test name.', nargs='?')
+parser.add_argument('--filter', type=str, help='Filter tests by name.')
 args = parser.parse_args()
+if args.filter and len(args.filter) < 3:
+    raise argparse.ArgumentTypeError('Filter must have at least 3 chars')
+if not args.filter and not args.test_name:
+    raise argparse.ArgumentTypeError('Test name or filter must be specified')
 sock = socket.create_connection(server.ADDRESS)
-sock.send('run_tests|' + args.test_name + '---')
-print sock.recv(1024)
+if args.filter:
+    sock.send('list_tests|' + args.filter + '---')
+    print sock.recv(1024)
+else:
+    sock.send('run_tests|' + args.test_name + '---')
+    print sock.recv(1024)
 sock.close()

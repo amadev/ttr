@@ -70,7 +70,7 @@ class TestProgram(TestoolsTestProgram):
         logger.debug('tests loaded: %s', len(list_test(self.test)[0]))
         while True:
             # cleanup stream from previos run
-            #self.stdout.truncate(0)
+            self.stdout.truncate(0)
 
             logger.debug('waiting for recv on pair conn %s', conn)
             cmd, params = conn.recv()
@@ -91,8 +91,9 @@ class TestProgram(TestoolsTestProgram):
             result = self.stdout.getvalue()
         return result
 
-    def handler_list_tests(self, dummy):
-        return 'not_implemented'
+    def handler_list_tests(self, needle):
+        return '\n'.join(
+            filter(lambda test: needle in test, list_test(self.test)[0]))
 
     def runTests(self, tests):
         if (self.catchbreak and
