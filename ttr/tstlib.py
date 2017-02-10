@@ -10,11 +10,17 @@ from testtools.run import (
     TestToolsTestRunner, list_test)
 
 
-
 # To let setup.py work, make this a conditional import.
 unittest = try_imports(['unittest2', 'unittest'])
 logger = logging.getLogger(__name__)
-defaultTestLoader = unittest.defaultTestLoader
+
+
+class TestLoader(unittest.TestLoader):
+    def _find_test_path(self, *args, **kwargs):
+        r = super(TestLoader, self)._find_test_path(*args, **kwargs)
+        if r is None:
+            return None, False
+        return r
 
 
 class TestProgram(TestoolsTestProgram):
@@ -29,7 +35,7 @@ class TestProgram(TestoolsTestProgram):
     _discovery_parser = None
 
     def __init__(self, conn, module=__name__, defaultTest=None, argv=None,
-                 testRunner=None, testLoader=defaultTestLoader,
+                 testRunner=None, testLoader=TestLoader(),
                  exit=True, verbosity=1, failfast=None, catchbreak=None,
                  buffer=None, stdout=None, tb_locals=False):
         if module == __name__:
