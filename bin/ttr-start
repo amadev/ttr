@@ -28,16 +28,8 @@ def signal_handler(signum, frame):
 
 
 if __name__ == '__main__':
+    server.set_environment()
     logger = logging.getLogger('ttr')
-    logger.propagate = False
-    logger.setLevel(logging.DEBUG)
-    ch = logging.FileHandler(filename='/tmp/ttr.log')
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        ('%(asctime)s - %(name)s - %(levelname)s '
-         '- %(process)s - %(processName)s - %(message)s'))
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
     logger.info('=== starting main process')
     restart_test_runner()
     server.start_watcher()

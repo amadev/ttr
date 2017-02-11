@@ -2,6 +2,7 @@ import os
 import signal
 import socket
 import logging
+import logging.handlers
 from multiprocessing import Process, Pipe
 import inotify.adapters
 
@@ -14,6 +15,7 @@ EXCLUDE_DIRS = ['/.git', '/.tox', '/.eggs', '/__pycache__', '/doc', '/api-ref']
 EXCLUDE_FILES = ['.#', '.pyc']
 END_MARKER = '---'
 IS_STOPPED = False
+DATA_DIR = os.path.expanduser('~/.ttr/')
 logger = logging.getLogger(__name__)
 
 
@@ -147,3 +149,22 @@ def kill():
     logger.info('killing everybody ...')
     WATCHER_PROCESS.terminate()
     TEST_RUNNER_PROCESS.terminate()
+
+
+def set_environment():
+    # TODO: create config
+    try:
+        os.mkdir(DATA_DIR, 0755)
+    except OSError:
+        pass
+    logger = logging.getLogger('ttr')
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    ch = logging.handlers.RotatingFileHandler(
+        filename=os.path.join(DATA_DIR, 'ttr.log'), maxBytes=1024 * 1024 * 10)
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        ('%(asctime)s - %(name)s - %(levelname)s '
+         '- %(process)s - %(processName)s - %(message)s'))
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
