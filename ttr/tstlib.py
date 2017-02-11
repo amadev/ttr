@@ -99,7 +99,8 @@ class TestProgram(TestoolsTestProgram):
 
     def handler_list_tests(self, needle):
         return '\n'.join(
-            filter(lambda test: needle in test, list_test(self.test)[0]))
+            filter(
+                lambda test: needle in test, list_test(self.test)[0])) or ' '
 
     def runTests(self, tests):
         if (self.catchbreak and
