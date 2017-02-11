@@ -32,7 +32,7 @@ class FilterByIdTestCase(unittest.TestCase):
 
     def test_run_test_command(self):
         conn = mock.Mock()
-        conn.recv.return_value = ['run_tests', ['test1']]
+        conn.recv.return_value = ['run_tests', 'test1']
         tstlib.TestProgram.run_once = True
         tstlib.TestProgram(conn, argv=[''])
         assert conn.send.call_args == [('',)]

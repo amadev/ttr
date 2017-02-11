@@ -8,6 +8,7 @@ Clone nova repository.
 
 #+BEGIN_SRC sh
 git clone git@github.com:openstack/nova.git
+cd nova
 tox -e py27 # takes about 10 minutes
 #+END_SRC
 

@@ -58,10 +58,19 @@ class TtrTestCase(unittest.TestCase):
         conn = create_connection(server.ADDRESS)
         conn.send(
             'run_tests|'
-            'ttr.tests.test_server.ServerTestCase.test_read_tests'
+            'ttr.tests.test_server.ServerTestCase.test_read_tests\n'
             'ttr.tests.test_server.ServerTestCase.test_listen---')
         test_result = conn.recv(1024)
         self.assertIn('Ran 2 tests in', test_result)
+
+    def test_run_testcase(self):
+        conn = create_connection(server.ADDRESS)
+        conn.send(
+            'run_tests|'
+            'ttr.tests.test_server.ServerTestCase---')
+        test_result = conn.recv(1024)
+        self.assertNotIn('Ran 0', test_result)
+        self.assertIn('tests in', test_result)
 
     def assert_list_tests_work(self, conn):
         conn.send('list_tests|ServerTestCase.test_read_tests---')

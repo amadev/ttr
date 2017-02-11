@@ -88,6 +88,7 @@ class TestProgram(TestoolsTestProgram):
                 break
 
     def handler_run_tests(self, test_ids):
+        test_ids = test_ids.split('\n')
         logger.debug(
             'test program process got list of tests %s', test_ids)
         tests = filter_by_ids(self.test, test_ids)
@@ -112,7 +113,7 @@ class TestProgram(TestoolsTestProgram):
 
 def get_tests_by_ids(suite_or_case, test_ids):
     if safe_hasattr(suite_or_case, 'id'):
-        if suite_or_case.id() in test_ids:
+        if any(test_id in suite_or_case.id() for test_id in test_ids):
             return [copy.deepcopy(suite_or_case)]
         return []
     else:
@@ -123,6 +124,8 @@ def get_tests_by_ids(suite_or_case, test_ids):
 
 
 def filter_by_ids(suite_or_case, test_ids):
+    if safe_hasattr(suite_or_case, 'filter_by_ids'):
+        return suite_or_case.filter_by_ids(test_ids)
     suite = unittest.TestSuite()
     suite.addTests(get_tests_by_ids(suite_or_case, test_ids))
     return suite
