@@ -26,7 +26,7 @@ class TtrTestCase(unittest.TestCase):
     def test_run_single_test(self):
         conn = create_connection(server.ADDRESS)
         conn.send(
-            'run_tests|ttr.tests.test_server.ServerTestCase.test_listen---')
+            'run_tests|ttr.tests.test_server.ServerTestCase.test_loop---')
         test_result = conn.recv(1024)
         self.assertIn('Ran 1 test in', test_result)
         conn.close()
@@ -56,10 +56,11 @@ class TtrTestCase(unittest.TestCase):
 
     def test_run_multiple_tests_at_once(self):
         conn = create_connection(server.ADDRESS)
+        # TODO: do not use real tests
         conn.send(
             'run_tests|'
             'ttr.tests.test_server.ServerTestCase.test_read_tests\n'
-            'ttr.tests.test_server.ServerTestCase.test_listen---')
+            'ttr.tests.test_server.ServerTestCase.test_loop---')
         test_result = conn.recv(1024)
         self.assertIn('Ran 2 tests in', test_result)
 

@@ -83,15 +83,20 @@ class TestProgram(TestoolsTestProgram):
             if cmd not in self.handlers:
                 logger.info('got unknown command: %s', cmd)
             else:
-                conn.send(self.handlers[cmd](params))
+                logger.debug(
+                    'going to execute %s', [cmd, params])
+                result = self.handlers[cmd](params)
+                logger.debug('cmd %s is finished, result: %s, sending',
+                             cmd, [result])
+                conn.send(result)
             if hasattr(self, 'run_once') and self.run_once:
                 break
 
     def handler_run_tests(self, test_ids):
         test_ids = test_ids.split('\n')
-        logger.debug(
-            'test program process got list of tests %s', test_ids)
         tests = filter_by_ids(self.test, test_ids)
+        logger.debug(
+            'tests found %s', len(list_test(tests)[0]))
         self.runTests(tests)
         result = ''
         if hasattr(self.stdout, 'getvalue'):
@@ -132,7 +137,7 @@ def filter_by_ids(suite_or_case, test_ids):
 
 
 def run_program(conn, argv, stdout):
-    logger.debug('Starting TestProgram (dir: %s, args: %s)',
+    logger.debug('starting TestProgram (dir: %s, args: %s)',
                  os.getcwd(), argv)
     try:
         TestProgram(
@@ -141,5 +146,5 @@ def run_program(conn, argv, stdout):
             testRunner=partial(TestToolsTestRunner, stdout=stdout),
             stdout=stdout)
     except Exception:
-        logger.exception('Error is occured in test process')
+        logger.exception('error is occured in test process')
         raise

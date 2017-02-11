@@ -4,7 +4,9 @@ import socket
 import logging
 import logging.handlers
 from multiprocessing import Process, Pipe
+from StringIO import StringIO
 import inotify.adapters
+from ttr.tstlib import run_program
 
 
 ADDRESS = ('localhost', 25000)
@@ -47,16 +49,7 @@ class InotifyExcludedTree(inotify.adapters.BaseTree):
                 q.append(entry_filepath)
 
 
-def listen(address):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(address)
-    sock.listen(5)
-    logger.info('new listen socket is created %s', sock)
-    return sock
-
-
-def read_request(sock):
+def _read_request(sock):
     """
     Infinite read request loop.
     Format of request: cmd|params--
@@ -79,39 +72,38 @@ def read_request(sock):
                     'got data: "%s", hex repr: "%s"', data, data.encode('hex'))
                 if data.endswith(END_MARKER):
                     payload += data.replace(END_MARKER, '')
-                    logger.debug('got command to execute')
+                    logger.debug('got END_MARKER, breaking concatination loop')
                     break
                 if not data:
-                    logger.debug('got command to finish receiving')
+                    logger.info('client closed connection')
                     end = True
                     break
                 payload += data
                 # end reading one request cycle
             if end:
-                logger.debug('reading is finished, exiting')
+                logger.debug('breaking receiving loop')
                 # exit multi-read cycle
                 break
             request = payload.split('|')
             if len(request) != 2:
                 logger.info('got invalid request %s', request)
                 continue
-            logger.debug('ready to excute %s', request)
+            logger.debug('finished data receiving from client %s', request)
             yield conn, request
 
 
-def restart_test_runner(function):
-    global TEST_RUNNER_PROCESS, TEST_RUNNER_CONN
-    if TEST_RUNNER_PROCESS:
-        logger.info('kill existing process %s', TEST_RUNNER_PROCESS)
-        TEST_RUNNER_PROCESS.terminate()
-    TEST_RUNNER_CONN, child_conn = Pipe()
-    TEST_RUNNER_PROCESS = Process(
-        target=function, args=(child_conn,), name='test_runner')
-    TEST_RUNNER_PROCESS.start()
-    logger.info('started test runner subprocess %s', TEST_RUNNER_PROCESS)
+def _restore_default_signal():
+    logger.debug('restoring default signal')
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
 
-def _watch():
+def _start_test_runner(conn):
+    _restore_default_signal()
+    run_program(conn, [''], StringIO())
+
+
+def _start_watcher():
+    _restore_default_signal()
     i = InotifyExcludedTree(
         os.getcwd(), mask=inotify.constants.IN_MODIFY,
         excludes=EXCLUDE_DIRS)
@@ -136,19 +128,12 @@ def _watch():
                     ppid, os.path.join(watch_path, filename))
 
 
-def start_watcher():
-    global WATCHER_PROCESS
-    WATCHER_PROCESS = Process(target=_watch, name='watcher')
-    WATCHER_PROCESS.start()
-    logger.info('started watcher subprocess %s', WATCHER_PROCESS)
-
-
-def kill():
-    global IS_STOPPED
-    IS_STOPPED = True
-    logger.info('killing everybody ...')
-    WATCHER_PROCESS.terminate()
-    TEST_RUNNER_PROCESS.terminate()
+def _signal_handler(signum, frame):
+    logger.debug('signal handler called with signal %s, %s', signum, frame)
+    if signum == signal.SIGHUP:
+        restart_test_runner()
+    elif signum == signal.SIGTERM:
+        kill()
 
 
 def set_environment():
@@ -168,3 +153,68 @@ def set_environment():
          '- %(process)s - %(processName)s - %(message)s'))
     ch.setFormatter(formatter)
     logger.addHandler(ch)
+    signal.signal(signal.SIGHUP, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+
+
+def restart_test_runner():
+    global TEST_RUNNER_PROCESS, TEST_RUNNER_CONN
+    if TEST_RUNNER_PROCESS:
+        logger.info('kill existing process %s', TEST_RUNNER_PROCESS)
+        TEST_RUNNER_PROCESS.terminate()
+    TEST_RUNNER_CONN, child_conn = Pipe()
+    TEST_RUNNER_PROCESS = Process(
+        target=_start_test_runner, args=(child_conn,), name='test_runner')
+    TEST_RUNNER_PROCESS.start()
+    logger.info('started test runner subprocess %s', TEST_RUNNER_PROCESS)
+
+
+def start_watcher():
+    global WATCHER_PROCESS
+    WATCHER_PROCESS = Process(target=_start_watcher, name='watcher')
+    WATCHER_PROCESS.start()
+    logger.info('started watcher subprocess %s', WATCHER_PROCESS)
+
+
+def kill():
+    global IS_STOPPED
+    IS_STOPPED = True
+    logger.info('killing everybody ...')
+    WATCHER_PROCESS.terminate()
+    TEST_RUNNER_PROCESS.terminate()
+
+
+def loop():
+    try:
+        _loop()
+    except Exception as exc:
+        logger.exception('server loop fails %s', exc)
+        raise
+
+
+def _loop():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(ADDRESS)
+    sock.listen(5)
+    logger.info('new listen socket is created %s', sock)
+    while True:
+        if IS_STOPPED:
+            break
+        try:
+            for client, request in _read_request(sock):
+                logger.debug('sending data to test runner %s', request)
+                TEST_RUNNER_CONN.send(request)
+                logger.debug('waiting for test runner result')
+                result = TEST_RUNNER_CONN.recv()
+                logger.debug('got result %s', [result])
+                logger.debug('sending result to client')
+                client.send(result)
+        except (socket.error, RuntimeError) as exc:
+            # if signal come (kill -s 1|15 pid) socket will be destroyed
+            # with error [Errno 4] Interrupted system call
+            # and we need to restart whole procedure
+            # python process.terminate does things more smoothly
+            # looks like socket is closed properly before killing
+            # for the such case RuntimeError is raised in read_tests
+            logger.exception('reading cycle was broken due %s', exc)
