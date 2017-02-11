@@ -1,5 +1,5 @@
 import logging
-import os.path
+import os
 import sys
 import copy
 from functools import partial
@@ -128,8 +128,14 @@ def filter_by_ids(suite_or_case, test_ids):
 
 
 def run_program(conn, argv, stdout):
-    TestProgram(
-        conn,
-        argv=argv,
-        testRunner=partial(TestToolsTestRunner, stdout=stdout),
-        stdout=stdout)
+    logger.debug('Starting TestProgram (dir: %s, args: %s)',
+                 os.getcwd(), argv)
+    try:
+        TestProgram(
+            conn,
+            argv=argv,
+            testRunner=partial(TestToolsTestRunner, stdout=stdout),
+            stdout=stdout)
+    except Exception:
+        logger.exception('Error is occured in test process')
+        raise
